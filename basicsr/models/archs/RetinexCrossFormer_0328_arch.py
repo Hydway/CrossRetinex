@@ -9,6 +9,7 @@ from .dce_model import enhance_net_nopool
 from pdb import set_trace as stx
 import os
 from .HVI_transform import RGB_HVI
+from datetime import datetime
 
 # import cv2
 # print('Executing file:', __file__)
@@ -477,16 +478,23 @@ class RetinexCrossFormer_0328(nn.Module):
 
         self.DCE_net.load_state_dict(torch.load(snapshot_path))
 
+        # print(">"*50)
+        print("training start:", str(datetime.now()))
+        # print("<"*50)
+
+
     def forward(self, x):
         """
         x: [b,c,h,w]
         return out:[b,c,h,w]
         """
-        adj_x = self.trans.HVIT(x)
-        with torch.no_grad():
-            _, enhanced_image, _ = self.DCE_net(adj_x)
 
-        out_rgb = self.body(enhanced_image) + adj_x
+        with torch.no_grad():
+            _, enhanced_image, _ = self.DCE_net(x)
+
+        adj_x = self.trans.HVIT(enhanced_image)
+
+        out_rgb = self.body(adj_x) + adj_x
 
         return out_rgb
 

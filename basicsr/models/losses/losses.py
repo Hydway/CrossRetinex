@@ -56,6 +56,7 @@ initial_matrix = torch.tensor([[0.299, 0.587, 0.114],
                                [-0.14713, -0.28886, 0.436],
                                [0.615, -0.51499, -0.10001]], dtype=torch.float32).to('cuda')
 
+
 class L1Loss(nn.Module):
     """L1 (mean absolute error, MAE) loss with regularization.
 
@@ -161,6 +162,67 @@ class PSNRLoss(nn.Module):
         assert len(pred.size()) == 4
 
         return self.loss_weight * self.scale * torch.log(((pred - target) ** 2).mean(dim=(1, 2, 3)) + 1e-8).mean()
+
+class NEWLoss(nn.Module):
+    def __init__(self, loss_weight=1.0, reduction='mean', toY=False, content_weight=1, style_weight=1e3, tv_weight=10):
+        super(NEWLoss, self).__init__()
+        assert reduction == 'mean'
+        self.loss_weight = loss_weight
+        # self.base_loss = L1Loss()
+        self.base_loss = PSNRLoss()
+        self.scale = 10 / np.log(10)
+        self.toY = toY
+        self.coef = torch.tensor([65.481, 128.553, 24.966]).reshape(1, 3, 1, 1)
+        self.first = True
+        self.content_weight = content_weight
+        self.style_weight = style_weight
+        self.tv_weight = tv_weight
+
+    def gram(self, X):
+        num_channels, n = X.shape[1], X.numel() // X.shape[1]
+        X = X.reshape((num_channels, n))
+        return torch.matmul(X, X.T) / (num_channels * n)
+
+    def style_loss(self, Y_hat, gram_Y):
+        return torch.square(self.gram(Y_hat) - gram_Y.detach()).mean()
+
+    def tv_loss(self, Y_hat):
+        return 0.5 * (torch.abs(Y_hat[:, :, 1:, :] - Y_hat[:, :, :-1, :]).mean() +
+                      torch.abs(Y_hat[:, :, :, 1:] - Y_hat[:, :, :, :-1]).mean())
+
+    def forward(self, pred, target, transform_matrix=None, weight=None, **kwargs):
+
+        # PSNR Loss
+        # psnr_loss = self.loss_weight * self.scale * torch.log(((pred - target) ** 2).mean(dim=(1, 2, 3)) + 1e-8).mean()
+        # psnr_loss = self.loss_weight * self.scale * torch.log( 1 / (((pred - target) ** 2).mean(dim=(1, 2, 3)) + 1e-8)).mean()
+        # psnr_loss = self.loss_weight * self.scale * (((pred - target) ** 2).mean(dim=(1, 2, 3)) + 1e-8).mean()
+
+        # Style Loss
+        gram_target = self.gram(target)
+        style_loss = self.style_weight * self.style_loss(pred, gram_target)
+
+        # Total Variation Loss
+        # tv_loss = self.tv_weight * self.tv_loss(pred)
+
+        # Total Loss
+        # l1loss = self.base_loss(pred, target)
+        psnr_loss = self.base_loss(pred, target)
+
+        style_loss = torch.log(style_loss)
+        # tv_loss = torch.log(tv_loss)
+
+        # total_loss = l1loss + style_loss
+        total_loss = psnr_loss + style_loss
+
+        print("psnr_loss:", psnr_loss)
+        # print("l1loss:", l1loss)
+        print("style_loss:", style_loss)
+        # print("tv_loss:", tv_loss)
+        print("total_loss:", total_loss)
+        print(">"*50)
+
+        return total_loss
+
 
 class CharbonnierLoss(nn.Module):
     """Charbonnier Loss (L1)"""
