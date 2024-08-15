@@ -164,12 +164,12 @@ class PSNRLoss(nn.Module):
         return self.loss_weight * self.scale * torch.log(((pred - target) ** 2).mean(dim=(1, 2, 3)) + 1e-8).mean()
 
 class NEWLoss(nn.Module):
-    def __init__(self, loss_weight=1.0, reduction='mean', toY=False, content_weight=1, style_weight=1e3, tv_weight=10):
+    def __init__(self, loss_weight=1.0, reduction='mean', toY=False, content_weight=1, style_weight=1e2, tv_weight=10):
         super(NEWLoss, self).__init__()
         assert reduction == 'mean'
         self.loss_weight = loss_weight
-        # self.base_loss = L1Loss()
-        self.base_loss = PSNRLoss()
+        self.base_loss = L1Loss()
+        # self.base_loss = PSNRLoss()
         self.scale = 10 / np.log(10)
         self.toY = toY
         self.coef = torch.tensor([65.481, 128.553, 24.966]).reshape(1, 3, 1, 1)
@@ -206,15 +206,15 @@ class NEWLoss(nn.Module):
 
         # Total Loss
         # l1loss = self.base_loss(pred, target)
-        psnr_loss = self.base_loss(pred, target)
+        base_loss = self.base_loss(pred, target)
 
-        style_loss = torch.log(style_loss)
+        # style_loss = torch.log(style_loss)
         # tv_loss = torch.log(tv_loss)
 
         # total_loss = l1loss + style_loss
-        total_loss = psnr_loss + style_loss
+        total_loss = base_loss + style_loss
 
-        print("psnr_loss:", psnr_loss)
+        print("base_loss:", base_loss)
         # print("l1loss:", l1loss)
         print("style_loss:", style_loss)
         # print("tv_loss:", tv_loss)
