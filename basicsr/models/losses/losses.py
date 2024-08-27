@@ -79,7 +79,7 @@ class L1Loss(nn.Module):
         self.lambda_reg = lambda_reg
         self.initial_matrix = initial_matrix
 
-    def forward(self, pred, target, transform_matrix=None, weight=None, **kwargs):
+    def forward(self, pred, target, weight=None, **kwargs):
         """
         Args:
             pred (Tensor): of shape (N, C, H, W). Predicted tensor.
@@ -91,10 +91,10 @@ class L1Loss(nn.Module):
         l1 = l1_loss(pred, target, weight, reduction=self.reduction)
 
         # Calculate regularization loss
-        if self.initial_matrix is not None and transform_matrix is not None:
-            reg_loss = torch.norm(transform_matrix - self.initial_matrix, p='fro')
-        else:
-            reg_loss = 0
+        # if self.initial_matrix is not None and transform_matrix is not None:
+        #     reg_loss = torch.norm(transform_matrix - self.initial_matrix, p='fro')
+        # else:
+        #     reg_loss = 0
 
         # Combine L1 loss and regularization loss
         total_loss = self.loss_weight * l1 + self.lambda_reg * reg_loss
@@ -168,8 +168,8 @@ class NEWLoss(nn.Module):
         super(NEWLoss, self).__init__()
         assert reduction == 'mean'
         self.loss_weight = loss_weight
-        self.base_loss = L1Loss()
-        # self.base_loss = PSNRLoss()
+        # self.base_loss = L1Loss()
+        self.base_loss = PSNRLoss()
         self.scale = 10 / np.log(10)
         self.toY = toY
         self.coef = torch.tensor([65.481, 128.553, 24.966]).reshape(1, 3, 1, 1)
@@ -208,18 +208,18 @@ class NEWLoss(nn.Module):
         # l1loss = self.base_loss(pred, target)
         base_loss = self.base_loss(pred, target)
 
-        # style_loss = torch.log(style_loss)
+        style_loss = torch.log(style_loss)
         # tv_loss = torch.log(tv_loss)
 
         # total_loss = l1loss + style_loss
         total_loss = base_loss + style_loss
-
-        print("base_loss:", base_loss)
+        #
+        # print("base_loss:", base_loss)
         # print("l1loss:", l1loss)
-        print("style_loss:", style_loss)
+        # print("style_loss:", style_loss)
         # print("tv_loss:", tv_loss)
-        print("total_loss:", total_loss)
-        print(">"*50)
+        # print("total_loss:", total_loss)
+        # print(">"*50)
 
         return total_loss
 

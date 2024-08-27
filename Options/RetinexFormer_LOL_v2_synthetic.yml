@@ -92,7 +92,7 @@ train:
   
   # losses
   pixel_opt:
-    type: L1Loss
+    type: NEWLoss
     loss_weight: 1
     reduction: mean
 

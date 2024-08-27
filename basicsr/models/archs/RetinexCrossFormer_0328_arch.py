@@ -6,6 +6,7 @@ import math
 import warnings
 from torch.nn.init import _calculate_fan_in_and_fan_out
 from .dce_model import enhance_net_nopool
+# from .dcepp_model import enhance_net_nopool
 from pdb import set_trace as stx
 import os
 from .HVI_transform import RGB_HVI
@@ -376,7 +377,7 @@ class Denoiser(nn.Module):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
 
-    def forward(self, x, illu_fea, illu_map):
+    def forward(self, x, illu_fea=None, illu_map=None):
         """
         x:          [b,c,h,w]         x是feature, 不是image
         illu_fea:   [b,c,h,w]
@@ -451,10 +452,11 @@ class RetinexFormer_Single_Stage(nn.Module):
         # illu_fea:   b,c,h,w
         # illu_map:   b,c=3,h,w
 
-        illu_fea, illu_map = self.estimator(img)
-        input_img = img * illu_map + img
+        # illu_fea, illu_map = self.estimator(img)
+        # input_img = img * illu_map + img
+        # output_img = self.denoiser(input_img, illu_fea, illu_map)
 
-        output_img = self.denoiser(input_img, illu_fea, illu_map)
+        output_img = self.denoiser(img)
 
         return output_img
 
@@ -471,11 +473,11 @@ class RetinexCrossFormer_0328(nn.Module):
 
         self.body = nn.Sequential(*modules_body)
 
-        self.DCE_net = enhance_net_nopool().cuda()
 
+        # self.DCE_net = enhance_net_nopool(scale_factor = 12).cuda()
+        self.DCE_net = enhance_net_nopool().cuda()
         base_dir = os.path.dirname(__file__)
         snapshot_path = os.path.join(base_dir, 'snapshots', 'Epoch99.pth')
-
         self.DCE_net.load_state_dict(torch.load(snapshot_path))
 
         # print(">"*50)
@@ -492,9 +494,9 @@ class RetinexCrossFormer_0328(nn.Module):
         with torch.no_grad():
             _, enhanced_image, _ = self.DCE_net(x)
 
-        adj_x = self.trans.HVIT(enhanced_image)
+        # adj_x = self.trans.HVIT(enhanced_image)
 
-        out_rgb = self.body(adj_x) + adj_x
+        out_rgb = self.body(enhanced_image)
 
         return out_rgb
 
