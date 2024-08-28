@@ -208,12 +208,12 @@ class NEWLoss(nn.Module):
         # l1loss = self.base_loss(pred, target)
         base_loss = self.base_loss(pred, target)
 
-        style_loss = torch.log(style_loss)
+        # style_loss = torch.log(style_loss)
         # tv_loss = torch.log(tv_loss)
 
         # total_loss = l1loss + style_loss
         total_loss = base_loss + style_loss
-        #
+
         # print("base_loss:", base_loss)
         # print("l1loss:", l1loss)
         # print("style_loss:", style_loss)

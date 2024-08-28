@@ -128,7 +128,7 @@ class Illumination_Estimator(nn.Module):
 
 class Estimator(nn.Module):
     def __init__(
-            self, n_fea_middle, n_fea_in=4, n_fea_out=3):  # __init__部分是内部属性，而forward的输入才是外部输入
+            self, n_fea_middle, n_fea_in=4, n_fea_out=3):
         super(Estimator, self).__init__()
 
         self.conv1_fea = nn.Conv2d(n_fea_in, n_fea_in, kernel_size=3, padding=1, bias=True)
@@ -230,9 +230,11 @@ class Cross_Attention_MSA(nn.Module):
         # print("heads num:", self.num_heads)
 
         attn = k @ q.transpose(-2, -1)
+        # print("attn = k @ q: ", attn.size())
         attn = attn * self.rescale
         attn = attn.softmax(dim=-1)
         out = attn @ v
+        # print("out = attn @ v:", out.size())
         out = out.permute(0, 3, 2, 1)
         # print("out size: ", out.size())
         out = out.reshape(b1, h1 * w1, self.num_heads * self.dim_head_k)
@@ -311,6 +313,7 @@ class IGAB(nn.Module):
             # print("x out size: ", x.size())
             x = ff(x) + x
         out = x.permute(0, 3, 1, 2)
+        # print("IGAB out:", out.size())
         return out
 
 
@@ -326,8 +329,10 @@ class Denoiser(nn.Module):
         # Encoder
         self.encoder_layers = nn.ModuleList([])
         dim_level = dim
+        # print("dim_level:", dim_level)
+        n_fea_out = 20 # illu_map 初始输出 channel 数
         for i in range(level):
-            k_dim = (i + 1) * 30
+            k_dim = (i + 1) * n_fea_out
             # print("k_dim", k_dim)
             # print(dim_level, k_dim, k_dim)
             self.encoder_layers.append(nn.ModuleList([
@@ -348,7 +353,7 @@ class Denoiser(nn.Module):
         # Decoder
         self.decoder_layers = nn.ModuleList([])
         for i in range(level):
-            k_dim_decoder = (level - i) * 30
+            k_dim_decoder = (level - i) * n_fea_out
             self.decoder_layers.append(nn.ModuleList([
                 nn.ConvTranspose2d(dim_level, dim_level // 2, stride=2, kernel_size=2, padding=0, output_padding=0),
                 Estimator(n_fea_middle=dim_level // 2, n_fea_in=dim_level // 2, n_fea_out=k_dim_decoder),
@@ -416,6 +421,7 @@ class Denoiser(nn.Module):
         # print("Bottleneck")
         # Bottleneck
         fea = self.bottleneck(fea, illu_fea, illu_map)
+        # print("fea size:", fea.size())
 
         # Decoder
         for i, (FeaUpSample, Estimator, Fution, illu_fea_Fution, illu_map_Fution, LeWinBlcok) in enumerate(self.decoder_layers):
@@ -426,8 +432,12 @@ class Denoiser(nn.Module):
             fea = Fution(
                 torch.cat([fea, fea_encoder[self.level - 1 - i]], dim=1))
 
+            # print("illu_fea size:", illu_fea.size())
+            # print("illu_fea_list[self.level - 1 - i] size:", illu_fea_list[self.level - 1 - i].size())
             illu_fea = illu_fea_Fution(
                 torch.cat([illu_fea, illu_fea_list[self.level - 1 - i]], dim=1))
+            # print("illu_map size:", illu_map.size())
+            # print("illu_map_list[self.level - 1 - i] size:", illu_map_list[self.level - 1 - i].size())
             illu_map = illu_map_Fution(
                 torch.cat([illu_map, illu_map_list[self.level - 1 - i]], dim=1))
 

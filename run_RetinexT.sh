@@ -27,3 +27,4 @@ nvidia-smi -L
 nvidia-smi
 
 python basicsr/train.py --opt Options/RetinexFormer_LOL_v1.yml
+# python basicsr/train.py --opt Options/RetinexFormer_LOL_v2_synthetic.yml
