@@ -53,7 +53,7 @@ network_g:
   type: RetinexCrossFormer_0328
   in_channels: 3
   out_channels: 3
-  n_feat: 40
+  n_feat: 20
   stage: 1
   num_blocks: [1,2,2]
 

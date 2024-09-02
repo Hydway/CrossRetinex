@@ -330,7 +330,7 @@ class Denoiser(nn.Module):
         self.encoder_layers = nn.ModuleList([])
         dim_level = dim
         # print("dim_level:", dim_level)
-        n_fea_out = 20 # illu_map 初始输出 channel 数
+        n_fea_out = 10 # illu_map 初始输出 channel 数
         for i in range(level):
             k_dim = (i + 1) * n_fea_out
             # print("k_dim", k_dim)
@@ -357,9 +357,9 @@ class Denoiser(nn.Module):
             self.decoder_layers.append(nn.ModuleList([
                 nn.ConvTranspose2d(dim_level, dim_level // 2, stride=2, kernel_size=2, padding=0, output_padding=0),
                 Estimator(n_fea_middle=dim_level // 2, n_fea_in=dim_level // 2, n_fea_out=k_dim_decoder),
-                nn.Conv2d(dim_level, dim_level // 2, 1, 1, bias=False),
-                nn.Conv2d(dim_level, dim_level // 2, 1, 1, bias=False), #illu_fea_Fution
-                nn.Conv2d(k_dim_decoder * 2, k_dim_decoder, 1, 1, bias=False), #illu_map_Fution
+                nn.Conv2d(dim_level, dim_level // 2, 1, 1, bias=False),  # fea
+                nn.Conv2d(dim_level, dim_level // 2, 1, 1, bias=False), # illu_fea_Fution
+                nn.Conv2d(k_dim_decoder * 2, k_dim_decoder, 1, 1, bias=False), # illu_map_Fution
                 IGAB(
                     dim=dim_level // 2, num_blocks=num_blocks[level - 1 - i], dim_head=dim,
                     heads=(dim_level // 2) // dim, dim_k=k_dim_decoder, dim_head_k=k_dim_decoder // ((dim_level // 2) // dim)),
