@@ -277,6 +277,32 @@ class FeedForward(nn.Module):
         return out.permute(0, 2, 3, 1)
 
 
+class FFN(nn.Module):
+    def __init__(self, dim, mult=4):
+        super().__init__()
+        hidden_dim = dim * mult
+
+        self.ffn = nn.Sequential(
+            nn.Linear(dim, hidden_dim, bias=False),
+            GELU(),
+            nn.Linear(hidden_dim, hidden_dim, bias=False),
+            GELU(),
+            nn.Linear(hidden_dim, dim, bias=False)
+        )
+
+    def forward(self, x):
+        """
+        x: [b,h,w,c]
+        return out: [b,h,w,c]
+        """
+        b, h, w, c = x.shape
+        # print("b c h w:", x.shape)
+        x = x.view(b * h * w, c)  # 展平为二维张量
+        x = self.ffn(x)
+        x = x.view(b, h, w, c)  # 恢复为四维张量
+        return x
+
+
 class IGAB(nn.Module):
     def __init__(
             self,
@@ -293,7 +319,7 @@ class IGAB(nn.Module):
         for _ in range(num_blocks):
             self.blocks.append(nn.ModuleList([
                 Cross_Attention_MSA(dim=dim, dim_head=dim_head, heads=heads, dim_k=dim_k, dim_head_k=dim_head_k),
-                PreNorm(dim, FeedForward(dim=dim))
+                PreNorm(dim, FFN(dim=dim))
             ]))
 
     def forward(self, x, illu_fea, illu_map):
@@ -421,14 +447,17 @@ class Denoiser(nn.Module):
         # print("Bottleneck")
         # Bottleneck
         fea = self.bottleneck(fea, illu_fea, illu_map)
-        # print("fea size:", fea.size())
+        # print(">" * 50)
+        # print("1 fea size:", fea.size())
 
         # Decoder
         for i, (FeaUpSample, Estimator, Fution, illu_fea_Fution, illu_map_Fution, LeWinBlcok) in enumerate(self.decoder_layers):
             # print(">" * 50)
             fea = FeaUpSample(fea)
             fea, illu_fea, illu_map = Estimator(fea)
+            # print("2 fea size:", fea.size())
 
+            # 转置卷积
             fea = Fution(
                 torch.cat([fea, fea_encoder[self.level - 1 - i]], dim=1))
 
@@ -441,7 +470,9 @@ class Denoiser(nn.Module):
             illu_map = illu_map_Fution(
                 torch.cat([illu_map, illu_map_list[self.level - 1 - i]], dim=1))
 
+            # print("3 fea size:", fea.size())
             fea = LeWinBlcok(fea, illu_fea, illu_map)
+            # print("4 fea size:", fea.size())
 
         # Mapping
         out = self.mapping(fea) + x
