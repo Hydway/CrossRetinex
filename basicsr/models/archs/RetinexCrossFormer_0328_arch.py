@@ -319,7 +319,7 @@ class IGAB(nn.Module):
         for _ in range(num_blocks):
             self.blocks.append(nn.ModuleList([
                 Cross_Attention_MSA(dim=dim, dim_head=dim_head, heads=heads, dim_k=dim_k, dim_head_k=dim_head_k),
-                PreNorm(dim, FFN(dim=dim))
+                PreNorm(dim, FeedForward(dim=dim))
             ]))
 
     def forward(self, x, illu_fea, illu_map):
@@ -543,7 +543,7 @@ class RetinexCrossFormer_0328(nn.Module):
 
 # if __name__ == '__main__':
 #     from fvcore.nn import FlopCountAnalysis
-#     model = RetinexCrossFormer_0328(stage=1,n_feat=40,num_blocks=[1,2,2]).cuda()
+#     model = RetinexCrossFormer_0328(stage=1,n_feat=20,num_blocks=[1,2,2]).cuda()
 #     print(model)
 #     inputs = torch.randn((1, 3, 256, 256)).cuda()
 #     flops = FlopCountAnalysis(model,inputs)

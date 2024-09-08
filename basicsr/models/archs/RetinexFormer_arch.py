@@ -5,9 +5,12 @@ from einops import rearrange
 import math
 import warnings
 from torch.nn.init import _calculate_fan_in_and_fan_out
+from datetime import datetime
 from pdb import set_trace as stx
+
+
 # import cv2
-# print('Executing file:', __file__)
+
 
 def _no_grad_trunc_normal_(tensor, mean, std, a, b):
     def norm_cdf(x):
@@ -91,10 +94,9 @@ def shift_back(inputs, step=2):
     return inputs[:, :, :, :out_col]
 
 
-
 class Illumination_Estimator(nn.Module):
     def __init__(
-            self, n_fea_middle, n_fea_in=4, n_fea_out=3):  #__init__部分是内部属性，而forward的输入才是外部输入
+            self, n_fea_middle, n_fea_in=4, n_fea_out=3):  # __init__部分是内部属性，而forward的输入才是外部输入
         super(Illumination_Estimator, self).__init__()
 
         self.conv1 = nn.Conv2d(n_fea_in, n_fea_middle, kernel_size=1, bias=True)
@@ -107,19 +109,18 @@ class Illumination_Estimator(nn.Module):
     def forward(self, img):
         # img:        b,c=3,h,w
         # mean_c:     b,c=1,h,w
-        
+
         # illu_fea:   b,c,h,w
         # illu_map:   b,c=3,h,w
-        
+
         mean_c = img.mean(dim=1).unsqueeze(1)
         # stx()
-        input = torch.cat([img,mean_c], dim=1)
+        input = torch.cat([img, mean_c], dim=1)
 
         x_1 = self.conv1(input)
         illu_fea = self.depth_conv(x_1)
         illu_map = self.conv2(illu_fea)
         return illu_fea, illu_map
-
 
 
 class IG_MSA(nn.Module):
@@ -150,25 +151,14 @@ class IG_MSA(nn.Module):
         illu_fea: [b,h,w,c]         # mask shift? 为什么是 b, h, w, c?
         return out: [b,h,w,c]
         """
-        print(">"*20, "IG_MSA", "<"*20,)
         b, h, w, c = x_in.shape
-        print("x_in shape: ", x_in.size())
-        print("illu_fea_trans shape: ", illu_fea_trans.size())
         x = x_in.reshape(b, h * w, c)
-        # print("x shape: ", x.size())
         q_inp = self.to_q(x)
-        # print("q_inp shape: ", q_inp.size())
         k_inp = self.to_k(x)
         v_inp = self.to_v(x)
-        illu_attn = illu_fea_trans # illu_fea: b,c,h,w -> b,h,w,c
+        illu_attn = illu_fea_trans  # illu_fea: b,c,h,w -> b,h,w,c
         q, k, v, illu_attn = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=self.num_heads),
                                  (q_inp, k_inp, v_inp, illu_attn.flatten(1, 2)))
-        # print(">"*50)
-        print("q size: ", q.size())
-        print("k size: ", k.size())
-        print("v size: ", v.size())
-        print("illu_attn size: ", illu_attn.size())
-        # print("<" * 50)
         v = v * illu_attn
         # q: b,heads,hw,c
         q = q.transpose(-2, -1)
@@ -176,16 +166,12 @@ class IG_MSA(nn.Module):
         v = v.transpose(-2, -1)
         q = F.normalize(q, dim=-1, p=2)
         k = F.normalize(k, dim=-1, p=2)
-        attn = (k @ q.transpose(-2, -1))   # A = K^T*Q
-        print("attn size: ", (k @ q.transpose(-2, -1)).size())
-        # print("heads num:", self.num_heads)
+        attn = (k @ q.transpose(-2, -1))  # A = K^T*Q
         attn = attn * self.rescale
         attn = attn.softmax(dim=-1)
-        x = attn @ v   # b,heads,d,hw
-        x = x.permute(0, 3, 1, 2)    # Transpose
+        x = attn @ v  # b,heads,d,hw
+        x = x.permute(0, 3, 1, 2)  # Transpose
         x = x.reshape(b, h * w, self.num_heads * self.dim_head)
-        # print("out shape: ", x.size())
-        # print("dim_head: ", self.dim_head)
         out_c = self.proj(x).view(b, h, w, c)
         out_p = self.pos_emb(v_inp.reshape(b, h, w, c).permute(
             0, 3, 1, 2)).permute(0, 2, 3, 1)
@@ -211,7 +197,7 @@ class FeedForward(nn.Module):
         x: [b,h,w,c]
         return out: [b,h,w,c]
         """
-        out = self.net(x.permute(0, 3, 1, 2))
+        out = self.net(x.permute(0, 3, 1, 2).contiguous())
         return out.permute(0, 2, 3, 1)
 
 
@@ -308,10 +294,6 @@ class Denoiser(nn.Module):
 
         # Embedding
         fea = self.embedding(x)
-        print(">"*20, "Denoiser", "<"*20)
-        print("x size(input): ", x.size())
-        print("fea size(input): ", fea.size())
-        print("illu_fea size(input): ", illu_fea.size())
 
         # Encoder
         fea_encoder = []
@@ -324,19 +306,19 @@ class Denoiser(nn.Module):
             illu_fea = IlluFeaDownsample(illu_fea)
 
         # Bottleneck
-        fea = self.bottleneck(fea,illu_fea)
+        fea = self.bottleneck(fea, illu_fea)
 
         # Decoder
         for i, (FeaUpSample, Fution, LeWinBlcok) in enumerate(self.decoder_layers):
             fea = FeaUpSample(fea)
             fea = Fution(
                 torch.cat([fea, fea_encoder[self.level - 1 - i]], dim=1))
-            illu_fea = illu_fea_list[self.level-1-i]
-            fea = LeWinBlcok(fea,illu_fea)
+            illu_fea = illu_fea_list[self.level - 1 - i]
+            fea = LeWinBlcok(fea, illu_fea)
 
         # Mapping
         out = self.mapping(fea) + x
-        exit()
+
         return out
 
 
@@ -344,35 +326,34 @@ class RetinexFormer_Single_Stage(nn.Module):
     def __init__(self, in_channels=3, out_channels=3, n_feat=31, level=2, num_blocks=[1, 1, 1]):
         super(RetinexFormer_Single_Stage, self).__init__()
         self.estimator = Illumination_Estimator(n_feat)
-        self.denoiser = Denoiser(in_dim=in_channels,out_dim=out_channels,dim=n_feat,level=level,num_blocks=num_blocks)  #### 将 Denoiser 改为 img2img
-    
+        self.denoiser = Denoiser(in_dim=in_channels, out_dim=out_channels, dim=n_feat, level=level,
+                                 num_blocks=num_blocks)  #### 将 Denoiser 改为 img2img
+
     def forward(self, img):
         # img:        b,c=3,h,w
-        
+
         # illu_fea:   b,c,h,w
         # illu_map:   b,c=3,h,w
 
         illu_fea, illu_map = self.estimator(img)
         input_img = img * illu_map + img
-        output_img = self.denoiser(input_img,illu_fea)
-        print(">"*20, "Illumination_Estimator", "<"*20)
-        print("img size: ", img.size())
-        print("illu_fea size: ", illu_fea.size())
-        print("illu_map size: ", illu_map.size())
-        print("input_img size: ", input_img.size())
+        output_img = self.denoiser(input_img, illu_fea)
+
         return output_img
 
 
 class RetinexFormer(nn.Module):
-    def __init__(self, in_channels=3, out_channels=3, n_feat=31, stage=3, num_blocks=[1,1,1]):
+    def __init__(self, in_channels=3, out_channels=3, n_feat=31, stage=3, num_blocks=[1, 1, 1]):
         super(RetinexFormer, self).__init__()
         self.stage = stage
 
-        modules_body = [RetinexFormer_Single_Stage(in_channels=in_channels, out_channels=out_channels, n_feat=n_feat, level=2, num_blocks=num_blocks)
-                        for _ in range(stage)]
-        
+        modules_body = [
+            RetinexFormer_Single_Stage(in_channels=in_channels, out_channels=out_channels, n_feat=n_feat, level=2,
+                                       num_blocks=num_blocks)
+            for _ in range(stage)]
+
         self.body = nn.Sequential(*modules_body)
-    
+
     def forward(self, x):
         """
         x: [b,c,h,w]
@@ -382,13 +363,13 @@ class RetinexFormer(nn.Module):
 
         return out
 
-
-# if __name__ == '__main__':
-#     from fvcore.nn import FlopCountAnalysis
-#     model = RetinexFormer(stage=1,n_feat=40,num_blocks=[1,2,2]).cuda()
-#     print(model)
-#     inputs = torch.randn((1, 3, 256, 256)).cuda()
-#     flops = FlopCountAnalysis(model,inputs)
-#     n_param = sum([p.nelement() for p in model.parameters()])  # 所有参数数量
-#     print(f'GMac:{flops.total()/(1024*1024*1024)}')
-#     print(f'Params:{n_param}')
+if __name__ == '__main__':
+    from fvcore.nn import FlopCountAnalysis
+    model = RetinexFormer(stage=1,n_feat=40,num_blocks=[1,2,2]).cuda()
+    print(model)
+    inputs = torch.randn((1, 3, 256, 256)).cuda()
+    flops = FlopCountAnalysis(model,inputs)
+    n_param = sum([p.nelement() for p in model.parameters()])  # 所有参数数量
+    print(f'GMac:{flops.total()/(1024*1024*1024)}')
+    print(f'Params:{n_param}')
+    print(datetime.now())
