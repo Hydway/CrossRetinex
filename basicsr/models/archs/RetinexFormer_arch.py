@@ -365,7 +365,7 @@ class RetinexFormer(nn.Module):
 
 if __name__ == '__main__':
     from fvcore.nn import FlopCountAnalysis
-    model = RetinexFormer(stage=1,n_feat=40,num_blocks=[1,2,2]).cuda()
+    model = RetinexFormer(stage=1,n_feat=24,num_blocks=[1,2,2]).cuda()
     print(model)
     inputs = torch.randn((1, 3, 256, 256)).cuda()
     flops = FlopCountAnalysis(model,inputs)
