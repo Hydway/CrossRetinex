@@ -349,8 +349,13 @@ class Denoiser(nn.Module):
         self.dim = dim # n_feat
         self.level = level
 
+        self.emb_channel = 40
+
         # Input projection
-        self.embedding = nn.Conv2d(in_dim, self.dim, 3, 1, 1, bias=False)
+        self.embedding = nn.Conv2d(in_dim, self.emb_channel, 3, 1, 1, bias=False)
+
+        # 新增一个卷积层，将40个通道的输出减少到20个通道
+        self.conv_reduce = nn.Conv2d(self.emb_channel, self.dim, 3, 1, 1, bias=False)  # 使用3x3卷积核，保持空间尺寸不变
 
         # Encoder
         self.encoder_layers = nn.ModuleList([])
@@ -417,6 +422,8 @@ class Denoiser(nn.Module):
 
         # Embedding
         fea = self.embedding(x)
+        fea = self.conv_reduce(fea)
+        # print(fea.shape)
         # fea = x
 
         # Encoder
@@ -513,7 +520,6 @@ class RetinexCrossFormer_0328(nn.Module):
             for _ in range(stage)]
 
         self.body = nn.Sequential(*modules_body)
-
 
         # self.DCE_net = enhance_net_nopool(scale_factor = 12).cuda()
         self.DCE_net = enhance_net_nopool().cuda()
