@@ -319,7 +319,7 @@ class IGAB(nn.Module):
         for _ in range(num_blocks):
             self.blocks.append(nn.ModuleList([
                 Cross_Attention_MSA(dim=dim, dim_head=dim_head, heads=heads, dim_k=dim_k, dim_head_k=dim_head_k),
-                PreNorm(dim, FFN(dim=dim))
+                PreNorm(dim, FeedForward(dim=dim))
             ]))
 
     def forward(self, x, illu_fea, illu_map):
@@ -349,19 +349,19 @@ class Denoiser(nn.Module):
         self.dim = dim # n_feat
         self.level = level
 
-        self.emb_channel = 40
+        self.emb_channel = 60
 
         # Input projection
         self.embedding = nn.Conv2d(in_dim, self.emb_channel, 3, 1, 1, bias=False)
 
         # 新增一个卷积层，将40个通道的输出减少到20个通道
-        self.conv_reduce = nn.Conv2d(self.emb_channel, self.dim, 3, 1, 1, bias=False)  # 使用3x3卷积核，保持空间尺寸不变
+        # self.conv_reduce = nn.Conv2d(self.emb_channel, self.dim, 3, 1, 1, bias=False)  # 使用3x3卷积核，保持空间尺寸不变
 
         # Encoder
         self.encoder_layers = nn.ModuleList([])
         dim_level = dim
         # print("dim_level:", dim_level)
-        n_fea_out = 10 # illu_map 初始输出 channel 数
+        n_fea_out = 20 # illu_map 初始输出 channel 数
         for i in range(level):
             k_dim = (i + 1) * n_fea_out
             # print("k_dim", k_dim)
@@ -422,7 +422,7 @@ class Denoiser(nn.Module):
 
         # Embedding
         fea = self.embedding(x)
-        fea = self.conv_reduce(fea)
+        # fea = self.conv_reduce(fea)
         # print(fea.shape)
         # fea = x
 
@@ -527,9 +527,9 @@ class RetinexCrossFormer_0328(nn.Module):
         snapshot_path = os.path.join(base_dir, 'snapshots', 'Epoch99.pth')
         self.DCE_net.load_state_dict(torch.load(snapshot_path))
 
-        # print(">"*50)
-        print("training start:", str(datetime.now()))
-        # print("<"*50)
+        print(">"*50)
+        print("training start 0328:", str(datetime.now()))
+        print("<"*50)
 
 
     def forward(self, x):
