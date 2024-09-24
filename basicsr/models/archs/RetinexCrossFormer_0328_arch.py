@@ -349,10 +349,12 @@ class Denoiser(nn.Module):
         self.dim = dim # n_feat
         self.level = level
 
-        self.emb_channel = 60
+        self.emb_channel = dim
 
         # Input projection
         self.embedding = nn.Conv2d(in_dim, self.emb_channel, 3, 1, 1, bias=False)
+        print("indim:", in_dim)
+        print("embedding:", self.embedding)
 
         # 新增一个卷积层，将40个通道的输出减少到20个通道
         # self.conv_reduce = nn.Conv2d(self.emb_channel, self.dim, 3, 1, 1, bias=False)  # 使用3x3卷积核，保持空间尺寸不变
@@ -361,7 +363,7 @@ class Denoiser(nn.Module):
         self.encoder_layers = nn.ModuleList([])
         dim_level = dim
         # print("dim_level:", dim_level)
-        n_fea_out = 20 # illu_map 初始输出 channel 数
+        n_fea_out = 10 # illu_map 初始输出 channel 数
         for i in range(level):
             k_dim = (i + 1) * n_fea_out
             # print("k_dim", k_dim)
@@ -482,7 +484,8 @@ class Denoiser(nn.Module):
             # print("4 fea size:", fea.size())
 
         # Mapping
-        out = self.mapping(fea) + x
+        # out = self.mapping(fea) + x
+        out = self.mapping(fea)
 
         return out
 
@@ -526,7 +529,12 @@ class RetinexCrossFormer_0328(nn.Module):
         base_dir = os.path.dirname(__file__)
         snapshot_path = os.path.join(base_dir, 'snapshots', 'Epoch99.pth')
         self.DCE_net.load_state_dict(torch.load(snapshot_path))
-
+        self.conv  = nn.Conv2d(
+                                in_channels=3,
+                                out_channels=3,
+                                kernel_size=5,
+                                padding=2
+                            )
         print(">"*50)
         print("training start 0328:", str(datetime.now()))
         print("<"*50)
@@ -541,9 +549,13 @@ class RetinexCrossFormer_0328(nn.Module):
         with torch.no_grad():
             _, enhanced_image, _ = self.DCE_net(x)
 
+        x = self.conv(x) + x
+
+        merged_tensor = torch.cat((enhanced_image, x), dim=1)
+
         # adj_x = self.trans.HVIT(enhanced_image)
 
-        out_rgb = self.body(enhanced_image)
+        out_rgb = self.body(merged_tensor)
 
         return out_rgb
 

@@ -97,7 +97,7 @@ class L1Loss(nn.Module):
         #     reg_loss = 0
 
         # Combine L1 loss and regularization loss
-        total_loss = self.loss_weight * l1 + self.lambda_reg * reg_loss
+        total_loss = self.loss_weight * l1
         # print("self.loss_weight:", self.loss_weight)
         # print("l1:", l1)
         # print("self.lambda_reg:", self.lambda_reg )
