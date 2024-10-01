@@ -165,7 +165,7 @@ class Estimator(nn.Module):
         illu_map = self.norm3(illu_map)
         illu_map = illu_map.permute(0, 3, 1, 2)
 
-        return fea, illu_fea, illu_map
+        return fea + img, illu_fea, illu_map
 
 
 
@@ -207,6 +207,7 @@ class Cross_Attention_MSA(nn.Module):
         # print("dim heads: ", self.dim_head)
         k_inp = self.to_k(x_k)
         v_inp = self.to_v(x_v)
+
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=self.num_heads),
                       (q_inp, k_inp, v_inp))
 
@@ -380,8 +381,10 @@ class Denoiser(nn.Module):
 
         # Bottleneck
         # print("k_dim in bottleneck: ", k_dim)
+        self.bn_estimator = Estimator(n_fea_middle=dim_level, n_fea_in=dim_level, n_fea_out=k_dim*2)
         self.bottleneck = IGAB(
             dim=dim_level, dim_head=dim, heads=dim_level // dim, num_blocks=num_blocks[-1], dim_k=k_dim*2, dim_head_k=k_dim*2//(dim_level // dim))
+
 
         # Decoder
         self.decoder_layers = nn.ModuleList([])
@@ -434,6 +437,7 @@ class Denoiser(nn.Module):
         illu_map_list = []
         for (Estimator, IGAB, FeaDownSample, IlluFeaDownsample, IlluMapDownsample) in self.encoder_layers:
             # print(">"*50)
+            # print("Encoder")
             # print("fea size:", fea.size())
             # print("illu_fea size:", illu_fea.size())
             # print("illu_map size:", illu_map.size())
@@ -455,13 +459,15 @@ class Denoiser(nn.Module):
         # print(">"*50)
         # print("Bottleneck")
         # Bottleneck
+        fea, illu_fea, illu_map = self.bn_estimator(fea)
         fea = self.bottleneck(fea, illu_fea, illu_map)
         # print(">" * 50)
         # print("1 fea size:", fea.size())
 
         # Decoder
-        for i, (FeaUpSample, Estimator, Fution, illu_fea_Fution, illu_map_Fution, LeWinBlcok) in enumerate(self.decoder_layers):
+        for i, (FeaUpSample, Estimator, Fution, illu_fea_Fution, illu_map_Fution, IGAB) in enumerate(self.decoder_layers):
             # print(">" * 50)
+            # print("Decoder")
             fea = FeaUpSample(fea)
             fea, illu_fea, illu_map = Estimator(fea)
             # print("2 fea size:", fea.size())
@@ -472,15 +478,22 @@ class Denoiser(nn.Module):
 
             # print("illu_fea size:", illu_fea.size())
             # print("illu_fea_list[self.level - 1 - i] size:", illu_fea_list[self.level - 1 - i].size())
+
+
             illu_fea = illu_fea_Fution(
                 torch.cat([illu_fea, illu_fea_list[self.level - 1 - i]], dim=1))
+
+
             # print("illu_map size:", illu_map.size())
             # print("illu_map_list[self.level - 1 - i] size:", illu_map_list[self.level - 1 - i].size())
+
             illu_map = illu_map_Fution(
                 torch.cat([illu_map, illu_map_list[self.level - 1 - i]], dim=1))
 
+
+
             # print("3 fea size:", fea.size())
-            fea = LeWinBlcok(fea, illu_fea, illu_map)
+            fea = IGAB(fea, illu_fea, illu_map)
             # print("4 fea size:", fea.size())
 
         # Mapping
@@ -532,8 +545,8 @@ class RetinexCrossFormer_0328(nn.Module):
         self.conv  = nn.Conv2d(
                                 in_channels=3,
                                 out_channels=3,
-                                kernel_size=5,
-                                padding=2
+                                kernel_size=3,
+                                padding=1
                             )
         print(">"*50)
         print("training start 0328:", str(datetime.now()))
@@ -549,7 +562,8 @@ class RetinexCrossFormer_0328(nn.Module):
         with torch.no_grad():
             _, enhanced_image, _ = self.DCE_net(x)
 
-        x = self.conv(x) + x
+        # x = self.conv(x)
+        # x = self.conv(x) + x
 
         merged_tensor = torch.cat((enhanced_image, x), dim=1)
 

@@ -75,9 +75,9 @@ train:
   # 2nd cycle: cosine annealing (3e-4 to 1e-6) for 208k iters.
   scheduler:
     type: CosineAnnealingRestartCyclicLR
-    periods: [46000, 104000]       
+    periods: [46000, 104000]
     restart_weights: [1,1]
-    eta_mins: [0.0003,0.000001]   
+    eta_mins: [0.0003,0.000001]
   
   mixing_augs:
     mixup: true
